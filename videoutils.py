@@ -77,6 +77,10 @@ def save_video(filename, frames, fps=30, is_rgb=False, is_ycrcb=False):
     result = cv2.VideoWriter(filename, 
                              cv2.VideoWriter_fourcc(*'MJPG'),
                              fps, (frames.shape[1], frames.shape[0]))
+    if frames.shape[2] == 1:
+        # Grayscale video
+        frames = np.concatenate((frames, frames, frames), axis=2)
+        print(frames.shape)
     for i in range(frames.shape[3]):
         frame = frames[:, :, :, i]
         if is_rgb:
@@ -127,17 +131,43 @@ def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp):
     X /= np.max(X, axis=0)
     X *= noise_amp
     t = np.linspace(0, 2*np.pi*n_periods, n_frames)
-    X[:, 0] += M/2
-    X[:, 1] += N/2 + amp*np.cos(t)
+    X[:, 0] += N/2 + amp*np.cos(t)
+    X[:, 1] += M/2
     frames = np.zeros((M, N, 3, n_frames))
     XX, YY = np.meshgrid(np.arange(M), np.arange(N))
     XX = np.array([XX.flatten(), YY.flatten()]).T
     for i in range(n_frames):
-        [u, v] = X[i, :]
+        [v, u] = X[i, :]
         F = np.exp(-((XX[:, 0]-v)**2 + (XX[:, 1]-u)**2)/(2*L**2))
         frames[:, :, :, i] = np.reshape(F, (M, N, 1))
     frames = np.array(frames*255, dtype=np.uint8)
     return frames, X
+
+def get_blob_cm(frames):
+    """
+    Parameters
+    ----------
+    frames: ndarray(M, N, ., n_frames)
+        Video data
+    
+    Returns
+    -------
+    X: ndarray(n_frames, 2)
+        Center of mass over all frames
+    """
+    M = frames.shape[0]
+    N = frames.shape[1]
+    XX, YY = np.meshgrid(np.arange(N), np.arange(M))
+    n_frames = frames.shape[-1]
+    if len(frames.shape) == 4:
+        frames = np.sum(frames, axis=2)
+    X = np.zeros((n_frames, 2))
+    for i in range(n_frames):
+        F = frames[:, :, i]
+        denom = np.sum(F)
+        X[i, 0] = np.sum(XX*F)/denom
+        X[i, 1] = np.sum(YY*F)/denom
+    return X
 
 if __name__ == '__main__':
     M = 256
