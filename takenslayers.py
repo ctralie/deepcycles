@@ -50,38 +50,6 @@ class Transpose(nn.Module):
     def forward(self, x):
         return torch.transpose(x, 0, 1)
 
-class SlidingVideoDistanceMatrix(nn.Module):
-    """
-    Compute a distance matrix for the sliding window 
-    embedding of a video with an integer step size, as per
-    [1] "(Quasi) Periodicity Quantification in Video Data, Using Topology"
-        by Chris Tralie and Jose Perea
-    """
-    def __init__(self, win, device):
-        """
-        Parameters
-        ----------
-        win: int
-            Length of window
-        """
-        super(SlidingVideoDistanceMatrix, self).__init__()
-        self.win = win
-        self.device = device
-    
-    def forward(self, x):
-        win = self.win
-        eps = 1e-12
-        x = torch.reshape(x, (x.shape[0], np.prod(x.shape[1::])))
-        xsqr = x.pow(2).sum(1).view(-1, 1)
-        dist = xsqr + xsqr.t() - 2*torch.mm(x, x.t().contiguous())
-        N = dist.shape[0]
-        dist = dist / (win*N)
-        dist = torch.clamp(dist, eps, np.inf)
-        dist_stack = torch.zeros((N-win+1, N-win+1), device=self.device)
-        for i in range(0, win-1):
-            dist_stack += dist[i:-win+i+1, i:-win+i+1]
-        return dist_stack
-    
 
     
 class ZNormalize(nn.Module):
@@ -100,6 +68,7 @@ class ZNormalize(nn.Module):
         norm = torch.reshape(norm, (-1, 1))
         Y = Y/(norm+self.eps)
         return Y
+
 
 class SlidingWindowLayer(nn.Module):
     """
@@ -130,3 +99,37 @@ class SlidingWindowLayer(nn.Module):
     
     def forward(self, x):
         return torch.conv1d(x, self.kernels, stride=self.dT)
+
+
+class SlidingVideoDistanceMatrixLayer(nn.Module):
+    """
+    Compute a distance matrix for the sliding window 
+    embedding of a video with an integer step size, as per
+    [1] "(Quasi) Periodicity Quantification in Video Data, Using Topology"
+        by Chris Tralie and Jose Perea
+    """
+    def __init__(self, win, device):
+        """
+        Parameters
+        ----------
+        win: int
+            Length of window
+        """
+        super(SlidingVideoDistanceMatrixLayer, self).__init__()
+        self.win = win
+        self.device = device
+    
+    def forward(self, x):
+        win = self.win
+        eps = 1e-12
+        x = torch.reshape(x, (x.shape[0], np.prod(x.shape[1::])))
+        xsqr = x.pow(2).sum(1).view(-1, 1)
+        dist = xsqr + xsqr.t() - 2*torch.mm(x, x.t().contiguous())
+        N = dist.shape[0]
+        dist = dist / (win*N)
+        dist = torch.clamp(dist, eps, np.inf)
+        dist_stack = torch.zeros((N-win+1, N-win+1), device=self.device)
+        for i in range(0, win-1):
+            dist_stack += dist[i:-win+i+1, i:-win+i+1]
+        return dist_stack
+
