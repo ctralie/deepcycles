@@ -4,6 +4,44 @@ from torch.autograd import Variable
 from torch import nn
 from torch.autograd import Variable
 from torch.nn import functional as F
+from gph import ripser_parallel
+
+class RipsPersistenceDistance(nn.Module):
+    """
+    pytorch module that takes a distance matrix and outputs a list of persistence diagrams
+    of the associated Rips filtration
+    """
+    def __init__(self, hom_dims):
+        """
+        hom_dims: a tuple of degrees in which to compute persistent homology
+        """
+        super(RipsPersistenceDistance, self).__init__()
+        self.hom_dims = hom_dims
+
+    def forward(self, input):
+        # Compute persistence from distance matrix.
+        idx = ripser_parallel(input.detach().numpy(),
+                              metric="precomputed",
+                              maxdim=max(self.hom_dims),
+                              return_generators=True)["gens"]
+        dgms = []
+        for hom_dim in self.hom_dims:
+            if hom_dim == 0:
+                if idx[0].shape[0] == 0:
+                    dgms.append(torch.zeros((0, 2), requires_grad=True))
+                else:
+                    verts = torch.from_numpy(idx[0]).type(torch.LongTensor)
+                    dgm = torch.stack((input[verts[:, 0], verts[:, 0]], input[verts[:, 1], verts[:, 2]]), 1)
+                    dgms.append(dgm)
+            if hom_dim != 0:
+                if len(idx[1]) == 0:
+                    dgms.append(torch.zeros((0, 2), requires_grad=True))
+                else:
+                    verts = torch.from_numpy(idx[1][hom_dim - 1]).type(torch.LongTensor)
+                    dgm = torch.stack((input[verts[:, 0], verts[:, 1]], input[verts[:, 2], verts[:, 3]]), 1)
+                    dgms.append(dgm)
+        return dgms
+
 
 class Transpose(nn.Module):
     def __init__(self):
@@ -11,6 +49,40 @@ class Transpose(nn.Module):
 
     def forward(self, x):
         return torch.transpose(x, 0, 1)
+
+class SlidingVideoDistanceMatrix(nn.Module):
+    """
+    Compute a distance matrix for the sliding window 
+    embedding of a video with an integer step size, as per
+    [1] "(Quasi) Periodicity Quantification in Video Data, Using Topology"
+        by Chris Tralie and Jose Perea
+    """
+    def __init__(self, win, device):
+        """
+        Parameters
+        ----------
+        win: int
+            Length of window
+        """
+        super(SlidingVideoDistanceMatrix, self).__init__()
+        self.win = win
+        self.device = device
+    
+    def forward(self, x):
+        win = self.win
+        eps = 1e-12
+        x = torch.reshape(x, (x.shape[0], np.prod(x.shape[1::])))
+        xsqr = x.pow(2).sum(1).view(-1, 1)
+        dist = xsqr + xsqr.t() - 2*torch.mm(x, x.t().contiguous())
+        N = dist.shape[0]
+        dist = dist / (win*N)
+        dist = torch.clamp(dist, eps, np.inf)
+        dist_stack = torch.zeros((N-win+1, N-win+1), device=self.device)
+        for i in range(0, win-1):
+            dist_stack += dist[i:-win+i+1, i:-win+i+1]
+        return dist_stack
+    
+
     
 class ZNormalize(nn.Module):
     """
