@@ -91,7 +91,7 @@ def save_video(filename, frames, fps=30, is_rgb=False, is_ycrcb=False):
     result.release()
 
 
-def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp):
+def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp, gauss=False):
     """
     Simulate a blob taking a random walk in the video as a source
     of missing data.  Change the video in place and return the mask
@@ -113,12 +113,15 @@ def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp):
         Number of periods to go through
     noise: float
         Amount of noise to add in oscillatory trajectory
+    gauss: boolean
+        If true, make it a blob.  If false, make it a disc
+
     Returns
     -------
     frames: ndarray(M, N, 3, n_frames)
         A video of a white square moving on a black background
     X: ndarray(n_frames, 2)
-        Trajectory of the white square over time
+        Trajectory of the blob over time
     """
     from timeseries import get_random_walk_curve, smooth_curve
     X = get_random_walk_curve(100, int(n_frames/4), 2)
@@ -129,6 +132,7 @@ def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp):
         X = np.concatenate((X, np.flipud(X[-diff::, :])), axis=0)
     X -= np.min(X, axis=0)
     X /= np.max(X, axis=0)
+    X -= 0.5
     X *= noise_amp
     t = np.linspace(0, 2*np.pi*n_periods, n_frames)
     X[:, 0] += N/2 + amp*np.cos(t)
@@ -138,7 +142,10 @@ def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp):
     XX = np.array([XX.flatten(), YY.flatten()]).T
     for i in range(n_frames):
         [v, u] = X[i, :]
-        F = np.exp(-((XX[:, 0]-v)**2 + (XX[:, 1]-u)**2)/(2*L**2))
+        if gauss:
+            F = np.exp(-((XX[:, 0]-v)**2 + (XX[:, 1]-u)**2)/(2*L**2))
+        else:
+            F = 1.0*((XX[:, 0]-v)**2 + (XX[:, 1]-u)**2 < L**2)
         frames[:, :, :, i] = np.reshape(F, (M, N, 1))
     frames = np.array(frames*255, dtype=np.uint8)
     return frames, X
