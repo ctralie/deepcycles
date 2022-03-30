@@ -41,7 +41,7 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
         
         ## Step 1: Create Convolutional Down Network
         self.convdown = nn.ModuleList()
-        lastchannels = 1
+        lastchannels = x.shape[1]
         channels = 16
         for i in range(depth):
             self.convdown.append(nn.Conv2d(lastchannels, channels, 3, stride=2, padding=1))
@@ -67,7 +67,7 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
         for i in range(depth):
             nextchannels = channels//2
             if i == depth-1:
-                nextchannels = 1
+                nextchannels = x.shape[1]
             self.convup.append(nn.ConvTranspose2d(channels, nextchannels, 3, stride=2, padding=1, output_padding=1))
             channels = channels//2
             if i < depth-1:
@@ -112,7 +112,7 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
         self.losses.append(loss.item())
         return y, D, dgms, mse_loss.item(), self.lam*largest_pers.item(), self.lam*skip1_sum_h1_loss.item()
 
-    def train_epochs(self, num_epochs, do_plot=True):
+    def train_epochs(self, num_epochs, plot_interval=0):
         self.losses = []
         plot_idx = 0
         res = 4
@@ -130,10 +130,10 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
             sum_other_persistences.append(sum_other_persistence)
             dgm_score = largest_pers-sum_other_persistence
             
-            if do_plot and (plot_idx%40 == 0 or plot_idx == num_epochs-1):
+            if plot_interval > 0 and (plot_idx%plot_interval == 0 or plot_idx == num_epochs-1):
                 plt.clf()
                 plt.subplot2grid((2, 5), (0, 0), colspan=3, rowspan=2)
-                plt.title("Epoch {}: MSE Loss {:.3f}, DGM Score: {:.3f}, Total Loss: {:.3f}".format(epoch, mse_loss, dgm_score, self.losses[-1]))
+                plt.title("Epoch {}: MSE Loss {:.6f}, DGM Score: {:.6f}, Total Loss: {:.6f}".format(epoch, mse_loss, dgm_score, self.losses[-1]))
                 plt.plot(mse_losses)
                 plt.plot(largest_perses)
                 plt.plot(sum_other_persistences)
@@ -155,9 +155,14 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
                 plt.imshow(D.cpu().detach().numpy())
 
                 plt.subplot2grid((2, 5), (1, 4))
-                I = y.cpu().detach().numpy()[0, 0, :, :]
-                plt.imshow(I, cmap='gray', vmin=0, vmax=1)
-                plt.colorbar()
+                if y.shape[1] == 1:
+                    I = y.cpu().detach().numpy()[0, 0, :, :]
+                    plt.imshow(I, cmap='gray', vmin=0, vmax=1)
+                    plt.colorbar()
+                else:
+                    I = y.cpu().detach().numpy()[0, :, :, :]
+                    I = np.moveaxis(I, [0, 1, 2], [2, 0, 1])
+                    plt.imshow(I)
                 plt.title("First frame")
 
 

@@ -123,13 +123,17 @@ class SlidingVideoDistanceMatrixLayer(nn.Module):
         win = self.win
         eps = 1e-12
         x = torch.reshape(x, (x.shape[0], np.prod(x.shape[1::])))
+        n_pixels = x.shape[1]
         xsqr = x.pow(2).sum(1).view(-1, 1)
-        dist = xsqr + xsqr.t() - 2*torch.mm(x, x.t().contiguous())
-        N = dist.shape[0]
-        dist = dist / (win*N)
+        dist = xsqr + xsqr.t().contiguous() - 2*torch.mm(x, x.t().contiguous())
         dist = torch.clamp(dist, eps, np.inf)
+        dist = torch.sqrt(dist)
+        N = dist.shape[0]
+        dist = dist / torch.sqrt(torch.tensor([n_pixels*win]))
         dist_stack = torch.zeros((N-win+1, N-win+1), device=self.device)
-        for i in range(0, win-1):
-            dist_stack += dist[i:-win+i+1, i:-win+i+1]
+        for i in range(0, win):
+            dist_stack += dist[i:i+N-win+1, i:i+N-win+1]
+        for i in range(N-win+1):
+            dist_stack[i, i] = 0
         return dist_stack
 
