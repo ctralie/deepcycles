@@ -101,6 +101,43 @@ class SlidingWindowLayer(nn.Module):
         return torch.conv1d(x, self.kernels, stride=self.dT)
 
 
+class BandpassLayer(nn.Module):
+    def __init__(self, fl, fh, sr, numtaps=51, n_channels=3):
+        """
+        Construct an FIR bandpass layer
+        
+        Parameters
+        ----------
+        fl: float
+            Low frequency
+        fh: float
+            High frequency
+        sr: int
+            Sample rate
+        numtaps: int
+            Length of convolutional filter
+        """
+        super(BandpassLayer, self).__init__()
+        from scipy.signal import firls
+        df = fh-fl
+        bands = (0, fl-0.1*df, fl, fh, fh+0.1*df, sr//2)
+        desired = (0, 0, 1, 1, 0, 0)
+        h = firls(numtaps, bands, desired, fs=sr)
+        self.h = torch.from_numpy(h[None, None, :]).float()
+    
+    def forward(self, X):
+        orig_shape = list(X.shape)
+        T = X.shape[0]
+        N = np.prod(X.shape[1::])
+        X = torch.reshape(X, (T, 1, N))
+        X = torch.transpose(X, 0, 2)
+        Y = F.conv1d(X, self.h, padding='valid')
+        Y = torch.transpose(Y, 0, 2)
+        orig_shape[0] = Y.shape[0]
+        return torch.reshape(Y, orig_shape)
+
+
+
 class SlidingVideoDistanceMatrixLayer(nn.Module):
     """
     Compute a distance matrix for the sliding window 
