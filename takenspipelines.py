@@ -470,31 +470,27 @@ class BlockRipsRegularizedAutoencoderCNN(nn.Module):
     def train_epochs(self, num_epochs, plot_interval=0):
         self.losses = []
         plot_idx = 0
-        res = 4
-        plt.figure(figsize=(res*5, res*3))
+        res = 2.5
+        plt.figure(figsize=(res*5, res*3.7))
         y = None
         mse_losses = []
-        block_stdevs = []
         block_means = []
         for epoch in range(num_epochs):
             y, block_Ds, mse_loss, block_losses, block_stdev = self.train_step()
             block_losses = block_losses.cpu().detach().numpy()
             ## Everything below this point is just for plotting
             mse_losses.append(mse_loss)
-            block_stdevs.append(block_stdev*self.lam_var)
             block_means.append(np.mean(block_losses)*self.lam_block)
             
             if plot_interval > 0 and (plot_idx%plot_interval == 0 or plot_idx == num_epochs-1):
                 plt.clf()
                 plt.subplot2grid((3, 5), (0, 0), colspan=3, rowspan=2)
-                plt.title("Epoch {}: MSE Loss {:.6f}, Block STDev: {:.6f}, Block Means: {:.6g}, Total Loss: {:.6f}".format(epoch, mse_loss, block_stdev, block_means[-1], self.losses[-1]))
+                plt.title("Epoch {}: MSE Loss {:.6f}, Block STDev: {:.6f}\nBlock Means: {:.6g}, Total Loss: {:.6f}".format(epoch, mse_loss, block_stdev, block_means[-1], self.losses[-1]))
                 plt.plot(mse_losses)
-                plt.plot(block_stdevs)
                 plt.plot(block_means)
-                plt.legend(["MSE Loss", "Block STDev", "Block Mean Scores"])
+                plt.legend(["MSE Loss", "Block Mean Scores"])
                 plt.scatter([epoch], [mse_loss], c='C0')
-                plt.scatter([epoch], [block_stdev*self.lam_block], c='C1')
-                plt.scatter([epoch], [block_means[-1]], c='C2')
+                plt.scatter([epoch], [block_means[-1]], c='C1')
 
                 #plt.ylim([0, np.quantile(np.concatenate((mse_losses, dgm_losses, birth_losses)), 0.99)])
                 plt.xlabel("Epoch")
@@ -508,16 +504,18 @@ class BlockRipsRegularizedAutoencoderCNN(nn.Module):
                 plt.subplot2grid((3, 5), (0, 3))
                 if dgms.size > 0:
                     plot_diagrams(dgms, labels=["H1"])
+                plt.title("Persistence Diagrams")
 
                 plt.subplot2grid((3, 5), (0, 4))
-                plt.imshow(D.cpu().detach().numpy())
+                plt.imshow(D.cpu().detach().numpy(), cmap='magma_r')
+                plt.title("Self-Similarity Matrix")
 
                 plt.subplot2grid((3, 5), (1, 3))
                 plt.plot(self.block_hop*np.arange(len(self.blocks)), block_losses)
                 plt.xlabel("Frame Index")
-                plt.title("DGM Scores of blocks (STDev = {:.6f})".format(block_stdev))
+                plt.title("Block DGM Scores")
 
-                plt.subplot2grid((3, 5), (2, 0), colspan=3)
+                plt.subplot2grid((3, 5), (2, 2), colspan=3)
                 I = np.array(y.cpu().detach().numpy())
                 Ix = I.shape[3]//2
                 Iy = I.shape[2]//3
@@ -536,9 +534,8 @@ class BlockRipsRegularizedAutoencoderCNN(nn.Module):
                     I -= np.min(I)
                     I /= np.max(I)
                     plt.imshow(I)
-                    plt.scatter([Ix], [Iy])
+                    plt.scatter([Ix], [Iy], c='r')
                 plt.title("Frame Index {}".format(idx))
-
                 plt.savefig("Iter{}.png".format(plot_idx), facecolor='white')
             plot_idx += 1
         return y
