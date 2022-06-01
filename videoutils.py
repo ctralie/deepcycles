@@ -91,7 +91,7 @@ def save_video(filename, frames, fps=30, is_rgb=False, is_ycrcb=False):
     result.release()
 
 
-def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp, gauss=False):
+def simulate_moving_blob(M, N, L, n_frames, amp, T, noise_amp, gauss=False):
     """
     Simulate a blob taking a random walk in the video as a source
     of missing data.  Change the video in place and return the mask
@@ -109,8 +109,8 @@ def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp, gauss=Fal
         Number of frames
     amp: float
         Amplitude of oscillation
-    n_periods: float
-        Number of periods to go through
+    T: float
+        Period of oscillation
     noise: float
         Amount of noise to add in oscillatory trajectory
     gauss: boolean
@@ -134,7 +134,7 @@ def simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp, gauss=Fal
     X /= np.max(X, axis=0)
     X -= 0.5
     X *= noise_amp
-    t = np.linspace(0, 2*np.pi*n_periods, n_frames)
+    t = 2*np.pi*np.arange(n_frames)/T
     X[:, 0] += N/2 + amp*np.cos(t)
     X[:, 1] += M/2
     frames = np.zeros((M, N, 3, n_frames))
@@ -176,13 +176,61 @@ def get_blob_cm(frames):
         X[i, 1] = np.sum(YY*F)/denom
     return X
 
+def simulate_beating_blob(M, N, L, n_frames, amp, T, noise_amp, gauss=False):
+    """
+    Simulate a blob taking a random walk in the video as a source
+    of missing data.  Change the video in place and return the mask
+    of the data that's still there
+
+    Parameters
+    ----------
+    M: int
+        Height of image
+    N: int
+        Width of image
+    L: int
+        Blob width in pixels
+    n_frames: int
+        Number of frames
+    amp: float
+        Amplitude of oscillation
+    T: float
+        Period of oscillation
+    noise: float
+        Amount of noise to add in oscillatory trajectory
+    gauss: boolean
+        If true, make it a blob.  If false, make it a disc
+
+    Returns
+    -------
+    frames: ndarray(M, N, 3, n_frames)
+        A video of a red blob that is subtly oscillating
+    """
+    t = 2*np.pi*np.arange(n_frames)/T
+    frames = np.zeros((M, N, 3, n_frames))
+    XX, YY = np.meshgrid(1.0*np.arange(M), 1.0*np.arange(N))
+    XX -= N/2
+    YY -= M/2
+    for i in range(n_frames):
+        if gauss:
+            F = np.exp(-(XX**2 + YY**2)/(2*L**2))
+        else:
+            F = 0.5*(XX**2 + YY**2 < L**2)
+        F = F*(1 + amp*np.cos(t[i]))
+        frames[:, :, 2, i] = F
+    frames += noise_amp*np.random.rand(M, N, 3, n_frames)
+    frames = np.array(frames*255, dtype=np.uint8)
+    return frames
+
 if __name__ == '__main__':
-    M = 256
-    N = 256
-    L = 10
-    n_frames = 300
-    amp = 40
-    n_periods = 10
-    noise_amp = 20
-    frames, X = simulate_moving_blob(M, N, L, n_frames, amp, n_periods, noise_amp)
+    M = 128
+    N = 128
+    L = 30
+    n_frames = 150
+    amp = 0.01
+    n_periods = 5
+    noise_amp = 0.01
+    frames = simulate_beating_blob(M, N, L, n_frames, amp, n_periods, noise_amp)
+    plt.plot(frames[M//2, N//2, 2, :])
+    plt.show()
     save_video("out.avi", frames, 30)

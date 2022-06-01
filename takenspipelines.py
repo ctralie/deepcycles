@@ -216,8 +216,11 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
                 self.convup.append(last_layer())
         
         ## Step 3: Create layers for sliding window
-        self.bandpass = BandpassLayer(*bandpass_params)
-        self.batch_norm = nn.BatchNorm2d(3)
+        if not bandpass_params:
+            self.bandpass = None
+        else:
+            self.bandpass = BandpassLayer(*bandpass_params)
+        self.batch_norm = nn.BatchNorm2d(x.shape[1])
         self.vid_dist = SlidingVideoDistanceMatrixLayer(win, device)
         self.rips = RipsPersistenceDistance([1])
         
@@ -233,7 +236,9 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
             y = layer(y)
         for layer in self.convup:
             y = layer(y)
-        yb = self.bandpass(y)
+        yb = y
+        if self.bandpass:
+            yb = self.bandpass(y)
         z = self.batch_norm(yb)
         D = self.vid_dist(z)
         dgms = self.rips(D.cpu())
@@ -300,7 +305,6 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
                 plt.plot(x[:, 0], c='r')
                 #plt.plot(x[:, 1], c='g')
                 #plt.plot(x[:, 2], c='b')
-                print(x[:, 0])
 
                 plt.subplot2grid((2, 5), (1, 4))
                 if y.shape[1] == 1:
@@ -316,7 +320,7 @@ class RipsRegularizedAutoencoderCNN(nn.Module):
                 plt.title("First frame")
 
 
-                plt.savefig("Iter{}.png".format(plot_idx), facecolor='white')
+                plt.savefig("FullBlockAutoencoderIter{}.png".format(plot_idx), facecolor='white')
             plot_idx += 1
         return y
 
