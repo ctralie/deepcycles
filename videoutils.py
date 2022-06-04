@@ -207,7 +207,7 @@ def simulate_beating_blob(M, N, L, n_frames, amp, T, noise_amp, gauss=False):
         A video of a red blob that is subtly oscillating
     """
     t = 2*np.pi*np.arange(n_frames)/T
-    frames = np.zeros((M, N, 3, n_frames))
+    frames = 0.2*np.ones((M, N, 3, n_frames))
     XX, YY = np.meshgrid(1.0*np.arange(M), 1.0*np.arange(N))
     XX -= N/2
     YY -= M/2
@@ -217,7 +217,7 @@ def simulate_beating_blob(M, N, L, n_frames, amp, T, noise_amp, gauss=False):
         else:
             F = 0.5*(XX**2 + YY**2 < L**2)
         F = F*(1 + amp*np.cos(t[i]))
-        frames[:, :, 2, i] = F
+        frames[:, :, 0, i] = F
     frames += noise_amp*np.random.rand(M, N, 3, n_frames)
     frames = np.array(frames*255, dtype=np.uint8)
     return frames
@@ -228,9 +228,9 @@ if __name__ == '__main__':
     L = 30
     n_frames = 150
     amp = 0.01
-    n_periods = 5
+    T = 30
     noise_amp = 0.01
-    frames = simulate_beating_blob(M, N, L, n_frames, amp, n_periods, noise_amp)
+    frames = simulate_beating_blob(M, N, L, n_frames, amp, T, noise_amp)
     plt.plot(frames[M//2, N//2, 2, :])
     plt.show()
-    save_video("out.avi", frames, 30)
+    save_video("out.avi", frames, 30, is_rgb=True)

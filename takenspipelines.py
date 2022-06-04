@@ -471,7 +471,7 @@ class BlockRipsRegularizedAutoencoderCNN(nn.Module):
         self.losses.append(loss.item())
         return y, block_Ds, mse_loss.item(), block_losses, block_stdev.item()
 
-    def train_epochs(self, num_epochs, plot_interval=0):
+    def train_epochs(self, num_epochs, plot_interval=0, plot_prefix=""):
         self.losses = []
         plot_idx = 0
         res = 2.5
@@ -480,6 +480,7 @@ class BlockRipsRegularizedAutoencoderCNN(nn.Module):
         mse_losses = []
         block_means = []
         for epoch in range(num_epochs):
+            print(".", end='')
             y, block_Ds, mse_loss, block_losses, block_stdev = self.train_step()
             block_losses = block_losses.cpu().detach().numpy()
             ## Everything below this point is just for plotting
@@ -540,7 +541,7 @@ class BlockRipsRegularizedAutoencoderCNN(nn.Module):
                     plt.imshow(I)
                     plt.scatter([Ix], [Iy], c='r')
                 plt.title("Frame Index {}".format(idx))
-                plt.savefig("Iter{}.png".format(plot_idx), facecolor='white')
+                plt.savefig("{}Iter{}.png".format(plot_prefix, plot_idx), facecolor='white')
             plot_idx += 1
         return y
 
